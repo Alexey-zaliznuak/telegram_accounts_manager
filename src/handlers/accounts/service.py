@@ -26,19 +26,17 @@ class AccountsService(TelegramService):
 
         success_message_part = (
             "Коды успешно отправлены на:"
-            + "\n"
+            + "\n\n"
             + "\n".join([HTMLFormatter.code(phone) for phone in success]) + "\n"
         ) if success else ""
 
         failure_message_part = (
             "Ошибка при попытке отправить код на:"
-            + "\n"
+            + "\n\n"
             + "\n".join([HTMLFormatter.code(phone) for phone in failure]) + "\n"
         ) if failure else ""
 
         return (
-            "Результат:" + "\n"
-            + "\n"
             + success_message_part
             + "\n"
             + failure_message_part

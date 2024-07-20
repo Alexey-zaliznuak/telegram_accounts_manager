@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 @router.message(Command("import"))
-async def start_upload(message: Message, state: FSMContext):
+async def start_import(message: Message, state: FSMContext):
     await message.answer("Введите номер телефона:")
     await state.set_state(ImportAccountsForm.send_phones)
 
 
 @router.message(F.text, ImportAccountsForm.send_phones)
-async def send_confirm_codes(message: Message, state: FSMContext):
+async def send_phones(message: Message, state: FSMContext):
     phones = list(set(message.text.splitlines()))
     logger.info(f"Start getting codes for phones: {pformat(phones)}")
 
@@ -44,7 +44,7 @@ async def send_confirm_codes(message: Message, state: FSMContext):
 
 
 @router.message(Command("import_skip"), ImportAccountsForm.send_confirm_codes)
-async def import_skip(message: Message, state: FSMContext):
+async def import_skip(state: FSMContext, *args, **kwargs):
     """
     Use for skip not confirmed codes and clear state.
     Can be useful if part of uploaded phones became unavailable
@@ -53,9 +53,9 @@ async def import_skip(message: Message, state: FSMContext):
 
 
 @router.message(F.text, ImportAccountsForm.send_confirm_codes)
-async def upload_codes_and_sign_in(message: Message, state: FSMContext):
+async def send_codes(message: Message, state: FSMContext):
     """
-    Get codes in formate:
+    Get codes in format:
     <phone> <code>
     <phone> <code>
     """

@@ -7,8 +7,9 @@ from aiogram.types import Message
 from aiogram import F
 
 from core.utils import HTMLFormatter
-from forms import ImportAccountsForm
-from handlers.accounts.service import AccountsService
+
+from .forms import ImportAccountsForm
+from .service import TelegramService
 
 
 router = Router()

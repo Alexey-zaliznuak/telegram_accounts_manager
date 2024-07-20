@@ -1,12 +1,14 @@
 import logging
-
-from core import TelegramService
-from core.types import FailureList, SuccessList
-from core.utils import HTMLFormatter
+from typing import NamedTuple
 
 from aiogram.types import Message
 
-from typing import NamedTuple
+from core import TelegramService
+from core.database.orm_service import BaseORMService
+from core.types import FailureList, SuccessList
+from core.utils import HTMLFormatter
+
+from .models import TelegramAccount
 
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,9 @@ class PhoneCodePair(NamedTuple):
     code: str
 
 
-class AccountsService(TelegramService):
+class TelegramAccountsService(TelegramService, BaseORMService):
+    BASE_MODEL = TelegramAccount
+
     async def sign_in_and_save_account(pair: PhoneCodePair):
         pass
 

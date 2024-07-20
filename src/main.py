@@ -17,7 +17,7 @@ logging.basicConfig(
     format='%(name)s %(levelname)s [%(asctime)s] %(message)s',
     handlers=[
         logging.StreamHandler(),
-        RotatingFileHandler('bot.log', maxBytes=10_000 * 100, backupCount=1),  # save about 10_000 log entries
+        RotatingFileHandler('./logs/bot.log', maxBytes=10_000 * 100, backupCount=1),  # save about 10_000 log entries
     ]
 )
 

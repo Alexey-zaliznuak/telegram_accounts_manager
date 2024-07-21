@@ -47,7 +47,6 @@ class TelegramService:
         """
         Send code request to telegram app.
         """
-
         phones = args_to_list(*phones)
 
         success = []
@@ -62,6 +61,8 @@ class TelegramService:
             unknown_number=False,    # Номер не является неизвестным
             app_sandbox=False        # Не использовать песочницу приложения
         )
+
+        await self.connect_if_needs(client)
 
         for index, phone in enumerate(phones):
             try:
@@ -80,10 +81,19 @@ class TelegramService:
 
         return success, failure
 
+    def create_new_client(self, session: Session = None) -> TelegramClient:
+        session = session if session else StringSession()
+
+        return TelegramClient(session, Settings.TELEGRAM_API_ID, Settings.TELEGRAM_API_HASH)
+
+    async def create_new_client_and_connect(self, session: Session = None) -> TelegramClient:
+        client = self.create_new_client()
+        await client.connect()
+
+        return client
+
     @retry_on_flood(retries=5)
     async def __request_code_single(self, phone: str, settings: CodeSettings, client: TelegramClient):
-        await self.connect_if_needs()
-
         await client(
             SendCodeRequest(
                 phone_number=phone,
@@ -96,12 +106,3 @@ class TelegramService:
     async def connect_if_needs(self, client: TelegramClient):
         if not client.is_connected():
             await client.connect()
-
-    @staticmethod
-    async def create_new_client_and_connect(session: Session = None) -> TelegramClient:
-        session = session if session else StringSession()
-
-        client = TelegramClient(session, Settings.TELEGRAM_API_ID, Settings.TELEGRAM_API_HASH)
-        await client.connect()
-
-        return client

@@ -14,15 +14,19 @@ from .service import TelegramAccountsService
 
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 service = TelegramAccountsService()
-telegram_client = asyncio.run(service.create_new_client_and_connect())  # without sign in any accounts
-
-logger = logging.getLogger(__name__)
+telegram_client = service.create_new_client()  # without sign in any accounts
 
 
 SUCCESS_LIST_INDEX = 0  # TODO refactor with named tuple
 
+
+# TODO admins middleware
+# TODO commands for set unsold / sold states
+# TODO commands for clearing not cleared accounts
+# TODO commands for force clearing any accounts
 
 @router.message(Command("import"))
 async def start_import(message: Message, state: FSMContext):
@@ -47,7 +51,7 @@ async def send_phones(message: Message, state: FSMContext):
         service.build_send_code_result_message(result)
     )
 
-    await state.set_state(ImportAccountsForm.send_phones)
+    await state.set_state(ImportAccountsForm.send_confirm_codes)
 
 
 @router.message(Command("end_import"), ImportAccountsForm.send_confirm_codes)

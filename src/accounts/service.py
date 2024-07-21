@@ -71,7 +71,7 @@ class TelegramAccountsService(TelegramService, ):
         ) if failure else ""
 
         return (
-            + success_message_part
+            success_message_part
             + "\n"
             + failure_message_part
         )

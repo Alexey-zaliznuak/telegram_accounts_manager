@@ -1,17 +1,18 @@
 import asyncio
 import logging
+import os
 from logging.handlers import RotatingFileHandler
-from pprint import pformat
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from handlers import import_phones_router
+from accounts.router import router as accounts_router
 from settings import Settings
 
 
+os.makedirs("./logs", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s %(levelname)s [%(asctime)s] %(message)s',
@@ -33,7 +34,7 @@ storage = MemoryStorage()
 
 dp = Dispatcher(storage=storage)
 
-dp.include_routers(import_phones_router)
+dp.include_routers(accounts_router)
 
 
 async def main():

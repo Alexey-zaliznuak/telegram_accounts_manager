@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Boolean, DateTime, Text
+from sqlalchemy import Column, Boolean, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -15,9 +15,8 @@ class TelegramAccount(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    phone = Column(String(50), unique=True, nullable=False)
+    cleared = Column(Boolean, default=False, nullable=False)  # clear all chats and logout others session
+    sold = Column(Boolean, default=False, nullable=False)
+
     session = Column(Text, nullable=False)
-
-    cleared = Column(Boolean, default=False)  # clear all chats
-
-    # sold = Column(Boolean, default=False)
-    # sold_at = Column(DateTime, nullable=True)

@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from pprint import pformat
 from aiogram import Router
 from aiogram.fsm.context import FSMContext
@@ -9,12 +10,18 @@ from aiogram import F
 from core.utils import HTMLFormatter
 
 from .forms import ImportAccountsForm
-from .service import TelegramService
+from .service import TelegramAccountsService
 
 
 router = Router()
-service = AccountsService()
+
+service = TelegramAccountsService()
+telegram_client = asyncio.run(service.create_new_client_and_connect())  # without sign in any accounts
+
 logger = logging.getLogger(__name__)
+
+
+SUCCESS_LIST_INDEX = 0  # TODO refactor with named tuple
 
 
 @router.message(Command("import"))
@@ -33,9 +40,8 @@ async def send_phones(message: Message, state: FSMContext):
         + "\n".join([HTMLFormatter.code(phone) for phone in phones])
     )
 
-    await state.update_data(phones=phones)
-
-    result = await service.request_code(phones)
+    result = await service.request_code(telegram_client, phones)
+    await state.update_data(phones=phones[SUCCESS_LIST_INDEX])
 
     await message.answer(
         service.build_send_code_result_message(result)
@@ -44,12 +50,13 @@ async def send_phones(message: Message, state: FSMContext):
     await state.set_state(ImportAccountsForm.send_phones)
 
 
-@router.message(Command("import_skip"), ImportAccountsForm.send_confirm_codes)
-async def import_skip(state: FSMContext, *args, **kwargs):
+@router.message(Command("end_import"), ImportAccountsForm.send_confirm_codes)
+async def end_import(message: Message, state: FSMContext):
     """
     Use for skip not confirmed codes and clear state.
     Can be useful if part of uploaded phones became unavailable
     """
+    await message.answer("Оставшиеся аккаунты пропущены")
     await state.clear()
 
 
@@ -57,11 +64,13 @@ async def import_skip(state: FSMContext, *args, **kwargs):
 async def send_codes(message: Message, state: FSMContext):
     """
     Get codes in format:
+    ```
     <phone> <code>
     <phone> <code>
+    ```
     """
 
-    pairs = await service.parse_phone_code_pairs(message)
+    pairs = await service.parse_phone_code_pairs_and_answer_if_errors(message)
 
     state_data = await state.get_data()
 
@@ -95,7 +104,7 @@ async def send_codes(message: Message, state: FSMContext):
             logger.error(msg + "\n" + str(e))
 
     await message.answer(
-        service.build_sign_in_accounts_result_message(
+        main_telegram_service.build_sign_in_accounts_result_message(
             success_sign_in_phones,
             failure_sign_in_phones,
             remaining_phones,

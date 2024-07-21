@@ -4,12 +4,12 @@ from functools import wraps
 
 from telethon import TelegramClient
 from telethon.errors import FloodError
-from telethon.sessions import StringSession
+from telethon.sessions import Session, StringSession
 from telethon.tl.functions.auth import SendCodeRequest
 from telethon.types import CodeSettings
 
 from core.types import FailureList, SuccessList
-from core.utils import SingletonMeta, args_to_list, time_to_seconds
+from core.utils import args_to_list, time_to_seconds
 from settings import Settings
 
 
@@ -40,13 +40,10 @@ def retry_on_flood(retries=10):
     return decorator
 
 
-class TelegramService(metaclass=SingletonMeta):
-    client = TelegramClient(StringSession(), Settings.TELEGRAM_API_ID, Settings.TELEGRAM_API_HASH)
-
+class TelegramService:
     SEND_REQUEST_CODE_INTERVAL = time_to_seconds(seconds=3)
 
-
-    async def request_code(self, *phones: str | list[str]) -> tuple[SuccessList[str], FailureList[str]]:
+    async def request_code(self, client: TelegramClient, *phones: str | list[str]) -> tuple[SuccessList[str], FailureList[str]]:
         """
         Send code request to telegram app.
         """
@@ -68,7 +65,7 @@ class TelegramService(metaclass=SingletonMeta):
 
         for index, phone in enumerate(phones):
             try:
-                await self.__request_code_single(phone, settings)
+                await self.__request_code_single(phone, settings, client)
 
                 # Sleep only if this is not the last iteration
                 if index < len(phones) - 1:
@@ -77,27 +74,34 @@ class TelegramService(metaclass=SingletonMeta):
                 success.append(phone)
 
             except FloodError as e:
-                logger.error(f"Failed to get code for phone: {phone}")
+                logger.error(f"Failed to get code for phone: {phone}" + str(e))
 
                 failure.append(phone)
 
         return success, failure
 
-
     @retry_on_flood(retries=5)
-    async def __request_code_single(self, phone: str, settings: CodeSettings):
+    async def __request_code_single(self, phone: str, settings: CodeSettings, client: TelegramClient):
         await self.connect_if_needs()
 
-        await self.client(
+        await client(
             SendCodeRequest(
                 phone_number=phone,
-                api_id=self.client.api_id,
-                api_hash=self.client.api_hash,
-                settings=CodeSettings(),
+                api_id=client.api_id,
+                api_hash=client.api_hash,
+                settings=CodeSettings(),  # TODO use from params
             )
         )
 
+    async def connect_if_needs(self, client: TelegramClient):
+        if not client.is_connected():
+            await client.connect()
 
-    async def connect_if_needs(self):
-        if not self.client.is_connected():
-            await self.client.connect()
+    @staticmethod
+    async def create_new_client_and_connect(session: Session = None) -> TelegramClient:
+        session = session if session else StringSession()
+
+        client = TelegramClient(session, Settings.TELEGRAM_API_ID, Settings.TELEGRAM_API_HASH)
+        await client.connect()
+
+        return client

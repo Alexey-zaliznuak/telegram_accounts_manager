@@ -16,6 +16,9 @@ class TelegramAccount(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     phone = Column(String(50), unique=True, nullable=False)
+    code = Column(String(10), nullable=True)
+    code_hash = Column(String(50), nullable=True)
+
     cleared = Column(Boolean, default=False, nullable=False)  # clear all chats and logout others session
     sold = Column(Boolean, default=False, nullable=False)
 

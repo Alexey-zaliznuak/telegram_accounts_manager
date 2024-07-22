@@ -1,13 +1,16 @@
 import logging
-from typing import NamedTuple
 
 from aiogram.types import Message
 from telethon import TelegramClient
 from telethon.sessions import StringSession, Session
+from sqlalchemy import delete, func, select, and_, true
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import TelegramService
+from core.telegram_service import (
+    TelegramService,
+)
 from core.database.orm_service import BaseORMService
-from core.types import FailureList, SuccessList
+from core.types import PhoneCode, failure_message, is_success
 from core.utils import HTMLFormatter
 from settings import Settings
 from database import get_async_session_with_context_manager as get_async_session
@@ -18,29 +21,51 @@ from .models import TelegramAccount
 logger = logging.getLogger(__name__)
 
 
-class PhoneCodePair(NamedTuple):
-    phone: str
-    code: str
-
-
 class _TelegramAccountsOrmService(BaseORMService):
     BASE_MODEL = TelegramAccount
+
+    async def delete_by_phone(self, phone: str, session: AsyncSession):
+        await session.execute(delete(self.BASE_MODEL).where(self.BASE_MODEL.phone == phone))
+        await session.commit()
+
+    async def get_by_phone(self, phone: str, session: AsyncSession, *, throw_not_found: bool = True):
+        query = await session.execute(select(self.BASE_MODEL).where(self.BASE_MODEL.phone == phone))
+        result = query.fetchone()
+
+        if result is None:
+            if throw_not_found:
+                raise Not("Not found")
+            return None
+
+        obj = result[0]
+        return obj
 
 
 class TelegramAccountsService(TelegramService):
     objects = _TelegramAccountsOrmService()
 
-    async def save_account(self, credentials: PhoneCodePair):
+    async def create_account(
+        self,
+        phone: str,
+        code: str | None = None,
+        code_hash: str | None = None,
+        *,
+        delete_if_exists=False
+    ):
         """
         Create new client, sign in and create new Telegram Account with session
         """
         client = await self.create_new_client_and_connect()
-        await client.sign_in(phone=credentials.phone, code=credentials.code)
 
         async with get_async_session() as db_session:
+            if delete_if_exists:
+                await self.objects.delete_by_phone(phone, db_session)
+
             try:
                 new_account = TelegramAccount(
-                    phone=credentials.phone,
+                    phone=phone,
+                    code=code,
+                    code_hash=code_hash,
                     session=client.session.save()
                 )
 
@@ -54,10 +79,51 @@ class TelegramAccountsService(TelegramService):
 
         return new_account
 
-    @staticmethod
-    def build_send_code_result_message(result: tuple[SuccessList[str], FailureList[str]]):
-        success, failure = result
+    async def sign_in_and_update_account(
+        self,
+        phone: str,
+        code: str | None = None,
+    ) -> tuple[failure_message | None, is_success]:
+        """
+        Create new client, sign in and create new Telegram Account with session
+        """
+        client = await self.create_new_client_and_connect()
 
+        async with get_async_session() as db_session:
+            account = await self.objects.get_by_phone(phone, db_session, throw_not_found=False)
+
+            if account is None:
+                logger.warn(f"Unknown phone: {phone}")
+                return (f"Неизвестный телефон: {phone}", False)
+
+            try:
+                user = await client.sign_in(phone=phone, code=code, phone_code_hash=account.code_hash)
+                await self.objects.update_instance_fields(
+                    account,
+                    {
+                        "code": code,
+                        "session": client.session.save()
+                    },
+                    save=True,
+                    session=db_session
+                )
+                logger.info(
+                    f"""
+                    Success sign in account:
+                        Name: {user.first_name} {user.last_name}
+                        {phone=}
+                        {code=}
+                        code_hash={account.code_hash}
+                    """
+                )
+
+            finally:
+                await client.disconnect()
+
+        return (None, True)
+
+    @staticmethod
+    def build_send_code_result_message(success: list[str], failure: list[str]):
         success_message_part = (
             "Коды успешно отправлены на:"
             + "\n\n"
@@ -77,7 +143,7 @@ class TelegramAccountsService(TelegramService):
         )
 
     @staticmethod
-    async def parse_phone_code_pairs_and_answer_if_errors(message: Message) -> list[PhoneCodePair]:
+    async def parse_phone_code_pairs_and_answer_if_errors(message: Message) -> list[PhoneCode]:
         # TODO split into 2 methods
         """
         Return parsed phone code pairs by format
@@ -92,7 +158,7 @@ class TelegramAccountsService(TelegramService):
         for pair in data:
             try:
                 pair = pair.split()
-                result.append(PhoneCodePair(phone=pair[0], code=pair[1]))
+                result.append(TelegramSignInByPhoneAndCodeCredentials(phone=pair[0], code=pair[1]))
 
             except:
                 msg = f"Ошибка при сканировании пары: {pair}"

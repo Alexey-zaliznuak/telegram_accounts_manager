@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from infrastructure.database.filtering import BaseFilterModel
+    from .filtering import BaseFilterModel
 
 
 type Data = dict | BaseModel

@@ -39,6 +39,18 @@ class BaseORMService:
 
         return rows
 
+    async def get_by_id(self, id: UUID, session: AsyncSession, *, throw_not_found: bool = True):
+        query = await session.execute(select(self.BASE_MODEL).where(self.BASE_MODEL.id == id))
+        result = query.fetchone()
+
+        if result is None:
+            if throw_not_found:
+                raise Exception("Not found")
+            return None
+
+        obj = result[0]
+        return obj
+
     async def update_instance_fields(
         self,
         instance: T,

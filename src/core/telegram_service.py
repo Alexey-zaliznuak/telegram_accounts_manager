@@ -8,8 +8,8 @@ from telethon.sessions import Session, StringSession
 from telethon.tl.functions.auth import SendCodeRequest
 from telethon.types import CodeSettings
 
-from core.types import FailureList, SuccessList
-from core.utils import args_to_list, time_to_seconds
+from core.types import PhoneCode, failure_message, is_success
+from core.utils import time_to_seconds
 from settings import Settings
 
 
@@ -41,51 +41,61 @@ def retry_on_flood(retries=10):
 
 
 class TelegramService:
-    SEND_REQUEST_CODE_INTERVAL = time_to_seconds(seconds=3)
+    SEND_REQUEST_CODE_INTERVAL = time_to_seconds(seconds=1)
+    SEND_REQUEST_CODE_SETTINGS = CodeSettings(
+        allow_flashcall = False,
+        allow_app_hash = True,
+        allow_missed_call = False,
+        allow_firebase = False,
+        unknown_number = None,
+        logout_tokens = None,
+        token = None,
+        app_sandbox = None
+    )
 
-    async def request_code(self, client: TelegramClient, *phones: str | list[str]) -> tuple[SuccessList[str], FailureList[str]]:
-        """
-        Send code request to telegram app.
-        """
-        phones = args_to_list(*phones)
+    # async def request_code(self, client: TelegramClient, *phones: str | list[str]) -> tuple[SuccessList[str], FailureList[str]]:
+    #     """
+    #     Send code request to telegram app.
+    #     """
+    #     phones = args_to_list(*phones)
 
-        success = []
-        failure = []
+    #     success = []
+    #     failure = []
 
-        settings = CodeSettings(
-            allow_flashcall = False,
-            allow_app_hash = True,
-            allow_missed_call = False,
-            allow_firebase = False,
-            unknown_number = None,
-            logout_tokens = None,
-            token = None,
-            app_sandbox = None
-        )
+    #     settings = CodeSettings(
+    #         allow_flashcall = False,
+    #         allow_app_hash = True,
+    #         allow_missed_call = False,
+    #         allow_firebase = False,
+    #         unknown_number = None,
+    #         logout_tokens = None,
+    #         token = None,
+    #         app_sandbox = None
+    #     )
 
-        await self.connect_if_needs(client)
+    #     await self.connect_if_needs(client)
 
-        for index, phone in enumerate(phones):
-            try:
-                await self.__request_code_single(phone, settings, client)
+    #     for index, phone in enumerate(phones):
+    #         try:
+    #             await self.__request_code_single(phone, settings, client)
 
-                # Sleep only if this is not the last iteration
-                if index < len(phones) - 1:
-                    await asyncio.sleep(self.SEND_REQUEST_CODE_INTERVAL)
+    #             # Sleep only if this is not the last iteration
+    #             if index < len(phones) - 1:
+    #                 await asyncio.sleep(self.SEND_REQUEST_CODE_INTERVAL)
 
-                success.append(phone)
+    #             success.append(phone)
 
-            except FloodError as e:
-                logger.error(f"Failed to get code for phone: {phone}" + str(e))
+    #         except FloodError as e:
+    #             logger.error(f"Failed to get code for phone: {phone}" + str(e))
 
-                failure.append(phone)
+    #             failure.append(phone)
 
-            except PhoneNumberInvalidError as e:
-                logger.error(f"Failed to get code for phone: {phone}" + str(e))
+    #         except PhoneNumberInvalidError as e:
+    #             logger.error(f"Failed to get code for phone: {phone}" + str(e))
 
-                failure.append(f"{phone}: некорректный номер телефона")
+    #             failure.append(f"{phone}: некорректный номер телефона")
 
-        return success, failure
+    #     return success, failure
 
     def create_new_client(self, session: Session = None) -> TelegramClient:
         session = session if session else StringSession()
@@ -99,15 +109,25 @@ class TelegramService:
         return client
 
     @retry_on_flood(retries=5)
-    async def __request_code_single(self, phone: str, settings: CodeSettings, client: TelegramClient):
-        await client(
-            SendCodeRequest(
-                phone_number=phone,
-                api_id=client.api_id,
-                api_hash=client.api_hash,
-                settings=settings,  # TODO use from params
+    async def request_code(self, phone: str, client: TelegramClient) -> tuple[PhoneCode | failure_message, is_success]:
+        try:
+            response = await client(
+                SendCodeRequest(
+                    phone_number=phone,
+                    api_id=client.api_id,
+                    api_hash=client.api_hash,
+                    settings=self.SEND_REQUEST_CODE_SETTINGS,
+                ),
             )
-        )
+            code_hash = response.phone_code_hash
+            logger.info(f"Success send code to {phone}, {code_hash=}")
+
+            return (code_hash, True)
+
+        except PhoneNumberInvalidError as e:
+            msg = f"Invalid phone: {phone}"
+            logger.error(msg + str(e))
+            return (f"Некорректный номер телефона: {phone}", False)
 
     async def connect_if_needs(self, client: TelegramClient):
         if not client.is_connected():

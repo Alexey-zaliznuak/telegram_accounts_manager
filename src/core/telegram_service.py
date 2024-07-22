@@ -3,7 +3,7 @@ import logging
 from functools import wraps
 
 from telethon import TelegramClient
-from telethon.errors import FloodError
+from telethon.errors import FloodError, PhoneNumberInvalidError
 from telethon.sessions import Session, StringSession
 from telethon.tl.functions.auth import SendCodeRequest
 from telethon.types import CodeSettings
@@ -53,13 +53,14 @@ class TelegramService:
         failure = []
 
         settings = CodeSettings(
-            allow_flashcall=False,   # Не разрешать флэш-вызов
-            current_number=True,     # Использовать текущий номер
-            allow_app_hash=True,     # Разрешить использование app hash
-            allow_missed_call=False, # Не разрешать использование звонка
-            allow_firebase=False,    # Не разрешать использование Firebase
-            unknown_number=False,    # Номер не является неизвестным
-            app_sandbox=False        # Не использовать песочницу приложения
+            allow_flashcall = False,
+            allow_app_hash = True,
+            allow_missed_call = False,
+            allow_firebase = False,
+            unknown_number = None,
+            logout_tokens = None,
+            token = None,
+            app_sandbox = None
         )
 
         await self.connect_if_needs(client)
@@ -78,6 +79,11 @@ class TelegramService:
                 logger.error(f"Failed to get code for phone: {phone}" + str(e))
 
                 failure.append(phone)
+
+            except PhoneNumberInvalidError as e:
+                logger.error(f"Failed to get code for phone: {phone}" + str(e))
+
+                failure.append(f"{phone}: некорректный номер телефона")
 
         return success, failure
 
@@ -99,7 +105,7 @@ class TelegramService:
                 phone_number=phone,
                 api_id=client.api_id,
                 api_hash=client.api_hash,
-                settings=CodeSettings(),  # TODO use from params
+                settings=settings,  # TODO use from params
             )
         )
 

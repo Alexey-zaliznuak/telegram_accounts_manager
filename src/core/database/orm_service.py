@@ -15,9 +15,6 @@ T = TypeVar('T')
 class BaseORMService:
     BASE_MODEL: Any = ...
 
-    def __init__(self, base_model):
-        self.BASE_MODEL = base_model
-
     async def get_many(
         self,
         session: AsyncSession,

@@ -27,6 +27,7 @@ SUCCESS_LIST_INDEX = 0  # TODO refactor with named tuple
 # TODO commands for set unsold / sold states
 # TODO commands for clearing not cleared accounts
 # TODO commands for force clearing any accounts
+# TODO добавить ошибки текстом
 
 @router.message(Command("import"))
 async def start_import(message: Message, state: FSMContext):
@@ -92,7 +93,7 @@ async def send_codes(message: Message, state: FSMContext):
             continue
 
         try:
-            await service.sign_in_and_save_account(pair)
+            await service.save_account(pair)
 
             remaining_phones.remove(pair.phone)
 
@@ -108,7 +109,7 @@ async def send_codes(message: Message, state: FSMContext):
             logger.error(msg + "\n" + str(e))
 
     await message.answer(
-        main_telegram_service.build_sign_in_accounts_result_message(
+        service.build_sign_in_accounts_result_message(
             success_sign_in_phones,
             failure_sign_in_phones,
             remaining_phones,

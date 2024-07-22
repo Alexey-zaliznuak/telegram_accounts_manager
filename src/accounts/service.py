@@ -27,15 +27,15 @@ class _TelegramAccountsOrmService(BaseORMService):
     BASE_MODEL = TelegramAccount
 
 
-class TelegramAccountsService(TelegramService, ):
-    objects = _TelegramAccountsOrmService
+class TelegramAccountsService(TelegramService):
+    objects = _TelegramAccountsOrmService()
 
     async def save_account(self, credentials: PhoneCodePair):
         """
         Create new client, sign in and create new Telegram Account with session
         """
         client = await self.create_new_client_and_connect()
-        client.sign_in(phone=credentials.phone, code=credentials.code)
+        await client.sign_in(phone=credentials.phone, code=credentials.code)
 
         async with get_async_session() as db_session:
             try:
@@ -103,7 +103,7 @@ class TelegramAccountsService(TelegramService, ):
         return result
 
     @staticmethod
-    async def build_sign_in_accounts_result_message(
+    def build_sign_in_accounts_result_message(
         success: list[str],
         failure: list[str],
         remaining: list[str],
@@ -130,7 +130,7 @@ class TelegramAccountsService(TelegramService, ):
         ) if remaining else ""
 
         return (
-            success_message_part,
-            failure_message_part,
-            remaining_message_part,
+            success_message_part
+            + failure_message_part
+            + remaining_message_part
         )

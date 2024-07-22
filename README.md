@@ -1,4 +1,4 @@
-# Account Manager Bot
+# Accounts Manager Bot
 Bot for receiving/transferring telegram accounts.
 Created for a freelance order
 

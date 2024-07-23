@@ -8,6 +8,7 @@ SuccessList: TypeAlias = list[T]
 FailureList: TypeAlias = list[T]
 
 
+type phone_code_hash = str
 type failure_message = str
 type is_success = bool
 

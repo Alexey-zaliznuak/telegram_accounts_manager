@@ -18,17 +18,12 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 service = TelegramAccountsService()
-telegram_client = service.create_new_client()  # without sign in any accounts
-
-
-SUCCESS_LIST_INDEX = 0  # TODO refactor with named tuple
 
 
 # TODO admins middleware
 # TODO commands for set unsold / sold states
 # TODO commands for clearing not cleared accounts
-# TODO commands for force clearing any accounts
-# TODO добавить ошибки текстом
+# TODO commands for force clearing all accounts
 
 @router.message(Command("import"))
 async def start_import(message: Message, state: FSMContext):
@@ -50,22 +45,29 @@ async def send_phones(message: Message, state: FSMContext):
     failure = []
 
     for phone in phones:
-        result, is_success = await service.request_code(phone, telegram_client)
+        try:
+            telegram_client = await service.create_new_client_and_connect()
 
-        if not is_success:
-            failure.append(result)
-            logger.error(f"Failed to send code, {phone=}, {result=}")
-            continue
+            result, is_success = await service.request_code(phone, telegram_client)
 
-        await service.create_account(
-            phone=result.phone,
-            code=None,
-            code_hash=result.code_hash,
-            delete_if_exists=True,
-        )
+            if not is_success:
+                failure.append(result)
+                logger.error(f"Failed to send code, {phone=}, {result=}")
+                continue
 
-        success.append(result.phone)
-        await state.update_data(phones=success)
+            await service.create_account(
+                phone=phone,
+                code=None,
+                code_hash=result,
+                session=telegram_client.session.save(),
+                delete_if_exists=True,
+            )
+
+            success.append(result.phone)
+            await state.update_data(phones=success)
+
+        finally:
+            await telegram_client.disconnect()
 
     await message.answer(service.build_send_code_result_message(success, failure))
 
@@ -88,7 +90,6 @@ async def send_codes(message: Message, state: FSMContext):
     Get codes in format:
     ```
     <phone> <code>
-    <phone> <code>
     ```
     """
 
@@ -98,7 +99,7 @@ async def send_codes(message: Message, state: FSMContext):
     remaining_phones: list[str] = state_data.get("phones")
 
     success_phones: list[str] = []
-    failure_sign_in_phones: list[str] = []
+    failure_phones: list[str] = []
 
     for pair in pairs:
         if pair.phone not in remaining_phones:
@@ -117,7 +118,7 @@ async def send_codes(message: Message, state: FSMContext):
     await message.answer(
         service.build_sign_in_accounts_result_message(
             success_phones,
-            failure_sign_in_phones,
+            failure_phones,
             remaining_phones,
         )
     )

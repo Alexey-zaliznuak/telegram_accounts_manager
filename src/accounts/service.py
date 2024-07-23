@@ -3,6 +3,7 @@ import logging
 from aiogram.types import Message
 from telethon import TelegramClient
 from telethon.sessions import StringSession, Session
+from telethon.errors import PhoneCodeExpiredError
 from sqlalchemy import delete, func, select, and_, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,48 +35,50 @@ class _TelegramAccountsOrmService(BaseORMService):
 
         if result is None:
             if throw_not_found:
-                raise Not("Not found")
+                raise Exception("Not found")
             return None
 
         obj = result[0]
         return obj
 
 
+# TODO по хорошему надо бы singleton попробовать
+
+# использовать несколько клиентов сразу неполучится
+# !!! https://github.com/LonamiWebs/Telethon/issues/799?ysclid=lyy97y1yvm867650413
+
+
 class TelegramAccountsService(TelegramService):
     objects = _TelegramAccountsOrmService()
+    client: TelegramClient = ...
 
     async def create_account(
         self,
         phone: str,
         code: str | None = None,
         code_hash: str | None = None,
+        session: str | None = None,
         *,
         delete_if_exists=False
     ):
         """
         Create new client, sign in and create new Telegram Account with session
         """
-        client = await self.create_new_client_and_connect()
-
         async with get_async_session() as db_session:
             if delete_if_exists:
                 await self.objects.delete_by_phone(phone, db_session)
 
-            try:
-                new_account = TelegramAccount(
-                    phone=phone,
-                    code=code,
-                    code_hash=code_hash,
-                    session=client.session.save()
-                )
+            new_account = TelegramAccount(
+                phone=phone,
+                code=code,
+                code_hash=code_hash,
+                session=session
+            )
 
-                await self.objects.save_and_refresh(new_account, db_session)
+            await self.objects.save_and_refresh(new_account, db_session)
 
-                if not new_account:
-                    raise Exception("Failed to create Telegram Account")
-
-            finally:
-                await client.disconnect()
+            if not new_account:
+                raise Exception("Failed to create Telegram Account")
 
         return new_account
 
@@ -87,8 +90,6 @@ class TelegramAccountsService(TelegramService):
         """
         Create new client, sign in and create new Telegram Account with session
         """
-        client = await self.create_new_client_and_connect()
-
         async with get_async_session() as db_session:
             account = await self.objects.get_by_phone(phone, db_session, throw_not_found=False)
 
@@ -96,8 +97,19 @@ class TelegramAccountsService(TelegramService):
                 logger.warn(f"Unknown phone: {phone}")
                 return (f"Неизвестный телефон: {phone}", False)
 
+            if not account.session:
+                logger.error(f"Invalid session for {phone=}, session={account.session}")
+                return (f"Ошибка сессии: {phone}", False)
+
+            client = await self.create_new_client_and_connect(account.session)
+
             try:
                 user = await client.sign_in(phone=phone, code=code, phone_code_hash=account.code_hash)
+
+                # TODO remove it
+                async for message in client.iter_messages('Telegram', 5):
+                    print(f"Последний код входа: {message.message}", flush=True)
+
                 await self.objects.update_instance_fields(
                     account,
                     {
@@ -116,6 +128,9 @@ class TelegramAccountsService(TelegramService):
                         code_hash={account.code_hash}
                     """
                 )
+
+            except PhoneCodeExpiredError:
+                return (f"{phone}: код устарел", False)
 
             finally:
                 await client.disconnect()

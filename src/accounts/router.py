@@ -63,7 +63,7 @@ async def send_phones(message: Message, state: FSMContext):
                 delete_if_exists=True,
             )
 
-            success.append(result.phone)
+            success.append(phone)
             await state.update_data(phones=success)
 
         finally:

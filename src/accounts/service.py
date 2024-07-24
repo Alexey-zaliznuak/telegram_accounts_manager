@@ -44,10 +44,6 @@ class _TelegramAccountsOrmService(BaseORMService):
 
 # TODO по хорошему надо бы singleton попробовать
 
-# использовать несколько клиентов сразу неполучится
-# !!! https://github.com/LonamiWebs/Telethon/issues/799?ysclid=lyy97y1yvm867650413
-
-
 class TelegramAccountsService(TelegramService):
     objects = _TelegramAccountsOrmService()
     client: TelegramClient = ...
@@ -106,16 +102,8 @@ class TelegramAccountsService(TelegramService):
             try:
                 user = await client.sign_in(phone=phone, code=code, phone_code_hash=account.code_hash)
 
-                # TODO remove it
-                async for message in client.iter_messages('Telegram', 5):
-                    print(f"Последний код входа: {message.message}", flush=True)
-
                 await self.objects.update_instance_fields(
-                    account,
-                    {
-                        "code": code,
-                        "session": client.session.save()
-                    },
+                    account, {"code": code, "session": client.session.save()},
                     save=True,
                     session=db_session
                 )
@@ -173,7 +161,7 @@ class TelegramAccountsService(TelegramService):
         for pair in data:
             try:
                 pair = pair.split()
-                result.append(TelegramSignInByPhoneAndCodeCredentials(phone=pair[0], code=pair[1]))
+                result.append(PhoneCode(phone=pair[0], code=pair[1]))
 
             except:
                 msg = f"Ошибка при сканировании пары: {pair}"

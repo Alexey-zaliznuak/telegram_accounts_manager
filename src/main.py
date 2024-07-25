@@ -6,9 +6,10 @@ from logging.handlers import RotatingFileHandler
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
+from redis import Redis
 
-from accounts.router import router as accounts_router
+from accounts_management.router import router as accounts_management_router
 from settings import Settings
 
 
@@ -30,15 +31,16 @@ bot = Bot(
     )
 )
 
-storage = MemoryStorage()
+storage = RedisStorage(Redis.from_url(str(Settings.REDIS_URL)))
 
 dp = Dispatcher(storage=storage)
 
-dp.include_routers(accounts_router)
+dp.include_routers(accounts_management_router)
 
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_my_commands(Settings.DEFAULT_BOT_COMMANDS)
     await dp.start_polling(bot)
 
 

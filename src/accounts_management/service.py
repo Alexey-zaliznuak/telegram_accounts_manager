@@ -13,7 +13,6 @@ from core.telegram_service import (
 from core.database.orm_service import BaseORMService
 from core.types import PhoneCode, failure_message, is_success
 from core.utils import HTMLFormatter
-from settings import Settings
 from database import get_async_session_with_context_manager as get_async_session
 
 from .models import TelegramAccount
@@ -42,8 +41,7 @@ class _TelegramAccountsOrmService(BaseORMService):
         return obj
 
 
-# TODO по хорошему надо бы singleton попробовать
-
+# TODO по хорошему надо бы singleton
 class TelegramAccountsService(TelegramService):
     objects = _TelegramAccountsOrmService()
     client: TelegramClient = ...

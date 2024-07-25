@@ -1,12 +1,12 @@
 import logging
-import asyncio
 from pprint import pformat
 from aiogram import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, BotCommand
 from aiogram import F
 
+from accounts_management.settings import AccountsManagementSettings
 from core.utils import HTMLFormatter
 from telethon.errors import FloodError
 
@@ -41,8 +41,8 @@ async def send_phones(message: Message, state: FSMContext):
         + "\n".join([HTMLFormatter.code(phone) for phone in phones])
     )
 
-    success = []
-    failure = []
+    success, failure = [], []
+    # failure = []
 
     for phone in phones:
         try:
@@ -71,6 +71,10 @@ async def send_phones(message: Message, state: FSMContext):
 
     await message.answer(service.build_send_code_result_message(success, failure))
 
+    await message.bot.set_my_commands([
+        * await message.bot.get_my_commands(),
+        AccountsManagementSettings.END_IMPORT_COMMAND_DESCRIPTION
+    ])
     await state.set_state(ImportAccountsForm.send_confirm_codes)
 
 
